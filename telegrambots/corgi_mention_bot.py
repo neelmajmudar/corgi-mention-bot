@@ -15,11 +15,12 @@ Usage:
     python corgi_mention_bot.py --test       # send a test Telegram message and exit
     python corgi_mention_bot.py --get-chat-id  # print chat IDs the bot can see, then exit
 
-The bot tracks a high-water-mark tweet id in state and, on every run, delivers
-all mentions newer than it — so any mentions that arrived while the bot was not
-running are backlogged and sent on the next run. A single run delivers at most
-BACKLOG_LIMIT mentions (most-recent first); any older overflow is skipped and
-the bot resumes from live time, so it never floods the chat or rate-limits.
+On a fresh deployment the first run baselines to the newest mention (no initial
+dump). After that the bot tracks a high-water-mark tweet id and, on every run,
+delivers all mentions newer than it — so any mentions that arrived while the bot
+was not running are backlogged and sent on the next run. A single run delivers
+at most BACKLOG_LIMIT mentions (most-recent first); any older overflow is skipped
+and the bot resumes from live time, so it never floods the chat or rate-limits.
 
 Config is read from telegrambots/.env.local (see README.md):
     TWITTERAPI_IO_KEY     (required) your key from https://twitterapi.io dashboard
@@ -364,6 +365,36 @@ def cmd_get_chat_id() -> None:
             log(f"chat_id={cid}  ({label})")
 
 
+def baseline_state(state: dict) -> dict:
+    """Set the high-water mark to the current newest mention without notifying.
+
+    Used on a fresh deployment (no saved state) so the first run does not dump
+    the entire recent backlog into the chat. Every later run still polls from the
+    saved mark and backlogs any mentions missed while the bot wasn't running.
+    """
+    log(f"Fresh state — baselining @{MONITOR_USERNAME} to the newest mention (no initial dump).")
+    headers = {"x-api-key": TWITTERAPI_IO_KEY}
+    try:
+        resp = requests.get(MENTIONS_ENDPOINT, headers=headers, params={"userName": MONITOR_USERNAME}, timeout=HTTP_TIMEOUT)
+        resp.raise_for_status()
+        tweets = resp.json().get("tweets") or []
+    except requests.RequestException as e:
+        log(f"ERROR: baseline fetch failed: {e}")
+        tweets = []
+
+    if tweets:
+        newest = max(_as_int_id(t.get("id", "0")) for t in tweets)
+        state["last_seen_id"] = str(newest)
+    state["last_seen_time"] = int(time.time())
+    save_state(state)
+    log(f"Baseline set (last_seen_id={state.get('last_seen_id', '0')}). Listening for new mentions from now.")
+    return state
+
+
+def _is_fresh_state(state: dict) -> bool:
+    return state.get("last_seen_id", "0") in ("0", "", None)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Telegram notifier for X mentions via TwitterAPI.io")
     parser.add_argument("--once", action="store_true", help="poll a single time then exit")
@@ -404,13 +435,19 @@ def main() -> int:
 
     if args.once:
         # One-shot / scheduled mode (e.g. GitHub Actions cron): state_*.json is
-        # persisted between runs, so we always poll from the saved high-water
-        # mark and deliver every mention missed since the last run (full
-        # backlog). On the very first run (no saved state) this pulls the
-        # current backlog of recent mentions.
-        log(f"Polling from saved state (last_seen_id={state.get('last_seen_id', '0')}).")
-        poll_once(state)
+        # persisted between runs. On a fresh deployment we baseline to the newest
+        # mention (no initial dump); every later run polls from the saved
+        # high-water mark, backlogging anything missed while the bot was down.
+        if _is_fresh_state(state):
+            baseline_state(state)
+        else:
+            log(f"Polling from saved state (last_seen_id={state.get('last_seen_id', '0')}).")
+            poll_once(state)
         return 0
+
+    # Long-running loop mode: baseline once on a fresh start, then poll forever.
+    if _is_fresh_state(state):
+        state = baseline_state(state)
 
     if sentiment_active():
         log(f"Sentiment flagging enabled (model={os.getenv('SENTIMENT_MODEL', 'gpt-4o-mini')}).")
