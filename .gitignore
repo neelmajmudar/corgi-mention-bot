@@ -1,0 +1,5 @@
+.env
+.env.local
+telegrambots/state_*.json
+**/__pycache__/
+*.pyc

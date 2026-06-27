@@ -1,0 +1,77 @@
+name: Corgi Mention Bot
+
+# Polls TwitterAPI.io for new @-mentions and pushes them to a Telegram group.
+# Runs on a schedule (GitHub's cron minimum granularity is 5 minutes, and runs
+# may be delayed under load — fine for sentiment alerts that aren't latency-
+# critical). The high-water-mark state file is persisted between runs via the
+# Actions cache, so each run resumes instead of re-baselining.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}        # lets you trigger a run manually from the Actions tab
+
+# Never let two scheduled runs overlap (they'd race on the shared state).
+concurrency:
+  group: corgi-mention-bot
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    # Generous timeout: a large one-time backlog is delivered paced under
+    # Telegram's per-group rate limit (TELEGRAM_SEND_DELAY_SECONDS apart).
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        working-directory: telegrambots
+        run: pip install -r requirements.txt
+
+      # Restore the most recent saved state. The unique run_id key never exists
+      # yet (so this is always a restore-keys prefix match against the latest
+      # previously-saved cache).
+      - name: Restore bot state
+        uses: actions/cache/restore@v4
+        with:
+          path: telegrambots/state_*.json
+          key: corgi-state-${{ github.run_id }}
+          restore-keys: |
+            corgi-state-
+
+      - name: Poll once
+        working-directory: telegrambots
+        env:
+          TWITTERAPI_IO_KEY: ${{ secrets.TWITTERAPI_IO_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MONITOR_USERNAME: ${{ vars.MONITOR_USERNAME || 'UseCorgi' }}
+          SENTIMENT_ENABLED: ${{ vars.SENTIMENT_ENABLED || 'true' }}
+          SENTIMENT_MODEL: ${{ vars.SENTIMENT_MODEL || 'gpt-4o-mini' }}
+          SENTIMENT_CONFIDENCE_THRESHOLD: ${{ vars.SENTIMENT_CONFIDENCE_THRESHOLD || '0.7' }}
+          MAX_PAGES_PER_POLL: ${{ vars.MAX_PAGES_PER_POLL || '5' }}
+          BACKLOG_LIMIT: ${{ vars.BACKLOG_LIMIT || '100' }}
+          TELEGRAM_SEND_DELAY_SECONDS: ${{ vars.TELEGRAM_SEND_DELAY_SECONDS || '3' }}
+        run: python corgi_mention_bot.py --once
+
+      # Save the updated high-water mark under a fresh unique key so the next
+      # run's restore-keys prefix picks it up. (Cache entries are immutable, so
+      # we can't overwrite a fixed key — a per-run key is the standard pattern.)
+      - name: Save bot state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: telegrambots/state_*.json
+          key: corgi-state-${{ github.run_id }}
