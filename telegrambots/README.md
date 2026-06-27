@@ -155,7 +155,7 @@ adding Telegram command handling and per-chat state.
 | `MONITOR_USERNAME` | no | `UseCorgi` | Handle to watch (no `@`) |
 | `POLL_INTERVAL_SECONDS` | no | `120` | Seconds between polls |
 | `MAX_PAGES_PER_POLL` | no | `5` | Cost-safety cap (20 mentions/page) |
-| `BACKLOG_LIMIT` | no | `100` | Max mentions delivered per run; older overflow is skipped and the bot jumps to live time (`0` = unlimited) |
+| `BACKLOG_LIMIT` | no | `10` | Max mentions delivered per run; older overflow is skipped and the bot jumps to live time (kept small to stay live; `0` = unlimited) |
 | `TELEGRAM_SEND_DELAY_SECONDS` | no | `3` | Pause between sends to stay under Telegram's ~20 msg/min group limit |
 | `OPENAI_API_KEY` | no | — | Enables negative-sentiment flagging |
 | `SENTIMENT_ENABLED` | no | `true` | Set `false` to disable scoring |

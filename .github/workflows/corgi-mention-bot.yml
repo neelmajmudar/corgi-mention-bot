@@ -62,7 +62,7 @@ jobs:
           SENTIMENT_MODEL: ${{ vars.SENTIMENT_MODEL || 'gpt-4o-mini' }}
           SENTIMENT_CONFIDENCE_THRESHOLD: ${{ vars.SENTIMENT_CONFIDENCE_THRESHOLD || '0.7' }}
           MAX_PAGES_PER_POLL: ${{ vars.MAX_PAGES_PER_POLL || '5' }}
-          BACKLOG_LIMIT: ${{ vars.BACKLOG_LIMIT || '100' }}
+          BACKLOG_LIMIT: ${{ vars.BACKLOG_LIMIT || '10' }}
           TELEGRAM_SEND_DELAY_SECONDS: ${{ vars.TELEGRAM_SEND_DELAY_SECONDS || '3' }}
         run: python corgi_mention_bot.py --once
 

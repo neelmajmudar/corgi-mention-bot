@@ -70,8 +70,9 @@ MAX_PAGES_PER_POLL = int(os.getenv("MAX_PAGES_PER_POLL", "5"))
 # Backlog cap: if a single poll finds more new mentions than this, only the
 # most recent BACKLOG_LIMIT are delivered and the high-water mark jumps past the
 # older ones — i.e. catch up on at most this many, then continue from live time.
+# Kept small so the bot stays effectively live and never floods after a gap.
 # Set to 0 to disable the cap (deliver the entire backlog).
-BACKLOG_LIMIT = int(os.getenv("BACKLOG_LIMIT", "100"))
+BACKLOG_LIMIT = int(os.getenv("BACKLOG_LIMIT", "10"))
 
 # Seconds to wait between consecutive Telegram sends. Telegram throttles bots to
 # ~20 messages/minute per group, so we pace backlog delivery to avoid HTTP 429.
