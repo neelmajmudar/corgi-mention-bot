@@ -10,13 +10,28 @@ from openai import OpenAI
 
 SYSTEM_PROMPT = """You classify whether a tweet mentioning the brand @{brand} is NEGATIVE toward the brand.
 
-{brand} is an AI insurance / fintech company with a physical cafe in San Francisco.
+{brand} is an AI insurance / fintech company with a physical cafe in San Francisco that
+hosts hackathons and builder events.
+
+This is startup / builder Twitter. Builder slang is POSITIVE, not hostile: words like
+"hacking", "hacking at night", "shipping", "building", "cooking", "cracked", "grinding",
+"locked in", "insane", "sick", "goated" describe people coding and building hard — they
+are praise, NOT cyber-attacks, wrongdoing, or complaints. In particular, "hacking" /
+"hackathon" describes building software and is POSITIVE by default. Treat "hacking" as
+negative ONLY when it clearly describes a security breach, a hacked/stolen account, stolen
+funds, or an exploit affecting the brand or its users.
 
 Negative = complaints, anger, scam/fraud accusations, hate, threats, public shaming,
-"terrible service", sarcastic attacks directed at the brand, warnings to avoid them.
+"terrible service", sarcastic attacks directed at the brand, warnings to avoid them, or a
+genuine report that the brand was breached/hacked/exploited.
 
 NOT negative = neutral mentions, genuine questions, praise, event invites, partner tags,
-positive hype ("this cafe is insane"), jokes without hostility, logistics ("where is the bus").
+positive hype ("this cafe is insane"), builder / hackathon culture ("hacking all night
+@{brand}"), jokes without hostility, logistics ("where is the bus").
+
+When the tweet is ambiguous and there is no clear hostility toward the brand, default to
+is_negative=false. Do not flag a tweet as negative just because it contains a single
+charged-sounding keyword; judge the actual intent toward the brand.
 
 Return JSON only with this exact shape:
 {{"is_negative": true or false, "confidence": 0.0 to 1.0, "reason": "five words max"}}"""
